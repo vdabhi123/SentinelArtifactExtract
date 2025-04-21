@@ -1,0 +1,25 @@
+When to use this powershell Script:
+When this error comes while running the Script "GitHub API rate limit error (403)"
+
+Use GitHub Authentication (Recommended)
+
+Create a GitHub Personal Access Token (PAT):
+
+Go to https://github.com/settings/tokens
+
+Click “Generate new token (classic)”
+
+Give it a name, expiry, and select scope: ✅ no scopes are needed for public repo access like Sentinel
+
+Generate and copy the token
+
+Once PAT is generated:
+
+Here's your full PowerShell script, updated to:
+
+✅ Authenticate with GitHub using your personal access token (hardcoded securely in script)
+✅ Fetch only those Sentinel solutions that have an Analytic Rules folder
+✅ Let you interactively select a solution
+✅ Export all analytic rule metadata (name, severity, tactics, techniques, etc.)
+✅ Handle errors gracefully, including rate limiting
+
