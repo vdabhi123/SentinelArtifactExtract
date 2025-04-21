@@ -1,0 +1,68 @@
+# Install YAML module if not present
+if (-not (Get-Module -ListAvailable -Name powershell-yaml)) {
+    Install-Module -Name powershell-yaml -Scope CurrentUser -Force
+}
+Import-Module powershell-yaml
+
+# GitHub token (hardcoded)
+$githubToken = "your_github_pat_here"
+$headers = @{ Authorization = "Bearer $githubToken" }
+
+# Prompt for Solution name
+$solutionInput = Read-Host "`n🔍 Enter the **exact** solution name (e.g., Microsoft Defender XDR)"
+
+# Encode and build URL
+$encodedInput = [uri]::EscapeDataString($solutionInput)
+$analyticRulesApiUrl = "https://api.github.com/repos/Azure/Azure-Sentinel/contents/Solutions/$encodedInput/Analytic%20Rules"
+
+# Recursive function to pull all YAML files
+function Get-AllYamlFilesRecursive($url) {
+    $items = @()
+    try {
+        $files = Invoke-RestMethod -Uri $url -Headers $headers -ErrorAction Stop
+        foreach ($item in $files) {
+            if ($item.type -eq 'file' -and $item.name -like '*.yaml') {
+                $items += $item
+            } elseif ($item.type -eq 'dir') {
+                $items += Get-AllYamlFilesRecursive -url $item.url
+            }
+        }
+    } catch {
+        Write-Warning "⚠️ Failed to access $url. Error: $($_.Exception.Message)"
+    }
+    return $items
+}
+
+# Try to get all YAML rule files
+$yamlFiles = Get-AllYamlFilesRecursive -url $analyticRulesApiUrl
+
+if ($yamlFiles.Count -eq 0) {
+    Write-Host "`n⚠️ No analytic rules found for solution '$solutionInput'"
+    exit
+}
+
+# Process YAMLs
+$allRules = @()
+foreach ($file in $yamlFiles) {
+    try {
+        $yamlContent = Invoke-RestMethod -Uri $file.download_url -Headers $headers
+        $parsedYaml = ConvertFrom-Yaml $yamlContent
+
+        $allRules += [PSCustomObject]@{
+            Solution         = $solutionInput
+            RuleName         = $parsedYaml["name"]
+            Description      = $parsedYaml["description"]
+            Severity         = $parsedYaml["severity"]
+            MITRE_Tactics    = ($parsedYaml["tactics"] -join ", ")
+            MITRE_Techniques = ($parsedYaml["relevantTechniques"] -join ", ")
+        }
+    } catch {
+        Write-Warning "⚠️ Failed to parse $($file.download_url): $($_.Exception.Message)"
+    }
+}
+
+# Export to CSV
+$csvPath = "./Sentinel_Analytics_Rules_$($solutionInput -replace '\s','_').csv"
+$allRules | Export-Csv -Path $csvPath -NoTypeInformation -Encoding utf8
+
+Write-Host "`n✅ Exported $($allRules.Count) rules for '$solutionInput' to $csvPath"
