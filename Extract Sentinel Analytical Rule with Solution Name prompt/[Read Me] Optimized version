@@ -1,0 +1,7 @@
+To absolutely improve performance by skipping the step where the script scans all solutions first and 
+instead just let the user directly input the solution name (even if it's wrong) — then the script will 
+attempt to pull that specific solution’s Analytic Rules.
+
+This avoids listing and checking every solution from GitHub,
+saving a lot of time and avoiding hitting rate limits.
+
