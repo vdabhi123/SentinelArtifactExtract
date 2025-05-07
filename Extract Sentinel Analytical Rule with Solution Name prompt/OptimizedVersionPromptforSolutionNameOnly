@@ -1,21 +1,42 @@
+
 # Install YAML module if not present
 if (-not (Get-Module -ListAvailable -Name powershell-yaml)) {
     Install-Module -Name powershell-yaml -Scope CurrentUser -Force
 }
 Import-Module powershell-yaml
 
-# GitHub token (hardcoded)
-$githubToken = "your_github_pat_here"
+# GitHub token
+$githubToken = "Your_Github_PAT_token_for_Authentication"
 $headers = @{ Authorization = "Bearer $githubToken" }
 
 # Prompt for Solution name
-$solutionInput = Read-Host "`n🔍 Enter the **exact** solution name (e.g., Microsoft Defender XDR)"
+$solutionInput = Read-Host "`n🔍 Enter the **exact** solution name (e.g., 1Password, AtlassianJiraAudit)"
 
-# Encode and build URL
+# Encode input
 $encodedInput = [uri]::EscapeDataString($solutionInput)
-$analyticRulesApiUrl = "https://api.github.com/repos/Azure/Azure-Sentinel/contents/Solutions/$encodedInput/Analytic%20Rules"
 
-# Recursive function to pull all YAML files
+# Step 1: Find the correct rules folder (Analytics Rules or Analytic Rules)
+$baseSolutionUrl = "https://api.github.com/repos/Azure/Azure-Sentinel/contents/Solutions/$encodedInput"
+$rulesFolderUrl = $null
+
+try {
+    $contents = Invoke-RestMethod -Uri $baseSolutionUrl -Headers $headers -ErrorAction Stop
+    foreach ($item in $contents) {
+        if ($item.type -eq 'dir' -and ($item.name -eq 'Analytics Rules' -or $item.name -eq 'Analytic Rules')) {
+            $rulesFolderUrl = $item.url
+            break
+        }
+    }
+} catch {
+    Write-Warning "⚠️ Failed to access solution folder. Error: $($_.Exception.Message)"
+}
+
+if (-not $rulesFolderUrl) {
+    Write-Host "`n⚠️ No 'Analytics Rules' or 'Analytic Rules' folder found for '$solutionInput'"
+    exit
+}
+
+# Step 2: Recursive function to gather all YAML files
 function Get-AllYamlFilesRecursive($url) {
     $items = @()
     try {
@@ -33,15 +54,14 @@ function Get-AllYamlFilesRecursive($url) {
     return $items
 }
 
-# Try to get all YAML rule files
-$yamlFiles = Get-AllYamlFilesRecursive -url $analyticRulesApiUrl
+# Step 3: Process all YAML rule files
+$yamlFiles = Get-AllYamlFilesRecursive -url $rulesFolderUrl
 
 if ($yamlFiles.Count -eq 0) {
     Write-Host "`n⚠️ No analytic rules found for solution '$solutionInput'"
     exit
 }
 
-# Process YAMLs
 $allRules = @()
 foreach ($file in $yamlFiles) {
     try {
@@ -61,7 +81,7 @@ foreach ($file in $yamlFiles) {
     }
 }
 
-# Export to CSV
+# Step 4: Export results to CSV
 $csvPath = "./Sentinel_Analytics_Rules_$($solutionInput -replace '\s','_').csv"
 $allRules | Export-Csv -Path $csvPath -NoTypeInformation -Encoding utf8
 
