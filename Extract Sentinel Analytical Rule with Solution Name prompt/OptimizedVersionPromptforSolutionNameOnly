@@ -10,7 +10,7 @@ $githubToken = "Your_Github_PAT_token_for_Authentication"
 $headers = @{ Authorization = "Bearer $githubToken" }
 
 # Prompt for Solution name
-$solutionInput = Read-Host "`n🔍 Enter the **exact** solution name (e.g., 1Password, AtlassianJiraAudit)"
+$solutionInput = Read-Host "`n🔍 Enter the **exact** solution name (e.g., Microsoft Entra ID, 1Password, AtlassianJiraAudit)"
 
 # Encode input
 $encodedInput = [uri]::EscapeDataString($solutionInput)
